@@ -260,7 +260,7 @@ class BayesDesign(nn.Module):
 
         self.bayes_balance_factor = bayes_balance_factor
 
-    def forward(self, seq, struct, decode_order, token_to_decode, mask_type='bidirectional_autoregressive', temperature=1.0):
+    def forward(self, seq, struct, decode_order, token_to_decode, exclude_aa, mask_type='bidirectional_autoregressive', temperature=1.0):
         p_seq = self.seq_model(seq=seq, decode_order=decode_order, token_to_decode=token_to_decode, mask_type=mask_type, temperature=temperature).clone()
         p_seq_struct = self.seq_struct_model(seq=seq, struct=struct, decode_order=decode_order, token_to_decode=token_to_decode, mask_type=mask_type, temperature=temperature).clone()
 

@@ -25,6 +25,7 @@ def get_pdbs(data_loader, repeat=1, max_length=10000, num_units=1000000):
         pdb_dict_list: a list of dictionaries, each dictionary contains the
             coordinates and sequence of a PDB
     """
+    
     init_alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G','H', 'I', 'J','K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T','U', 'V','W','X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g','h', 'i', 'j','k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't','u', 'v','w','x', 'y', 'z']
     extra_alphabet = [str(item) for item in list(np.arange(300))]
     chain_alphabet = init_alphabet + extra_alphabet
@@ -32,8 +33,10 @@ def get_pdbs(data_loader, repeat=1, max_length=10000, num_units=1000000):
     c1 = 0
     pdb_dict_list = []
     t0 = time.time()
-    for _ in range(repeat):
+    for _ in range(repeat):        
         for step,t in enumerate(data_loader):
+            print("At step ", step, "\n")
+            # if step == len(data_loader.dataset) - 1: breakpoint()
             t = {k:v[0] for k,v in t.items()}
             c1 += 1
             if 'label' in list(t):
@@ -96,6 +99,7 @@ def get_pdbs(data_loader, repeat=1, max_length=10000, num_units=1000000):
                     my_dict['seq'] = concat_seq
                     if len(concat_seq) <= max_length:
                         pdb_dict_list.append(my_dict)
+                        # print("\n\nmy_dict: ", my_dict)
                     if len(pdb_dict_list) >= num_units:
                         break
     return pdb_dict_list
@@ -266,6 +270,7 @@ def get_seqs(train, valid, test, params):
     train_seqs = []
     valid_seqs = []
     test_seqs = []
+    
     for k,v in train.items():
         for item in v:
             train_seqs.append(get_seq(item, params))

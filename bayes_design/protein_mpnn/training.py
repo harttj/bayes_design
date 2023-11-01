@@ -2,6 +2,7 @@ import argparse
 import os.path
 
 def main(args):
+    import pdb
     import json, time, os, sys, glob
     import shutil
     import warnings
@@ -17,8 +18,9 @@ def main(args):
     import os.path
     import subprocess
     from concurrent.futures import ProcessPoolExecutor    
-    from utils import worker_init_fn, get_pdbs, loader_pdb, build_training_clusters, PDB_dataset, StructureDataset, StructureLoader
-    from .model_utils import featurize, loss_smoothed, loss_nll, get_std_opt, ProteinMPNN
+    from .protein_mpnn_utils import StructureDataset, StructureLoader
+    from .dataset import worker_init_fn, get_pdbs, loader_pdb, build_training_clusters, PDB_dataset
+    from .model_utils import featurize, loss_smoothed, loss_nll, get_std_opt, ProteinMPNN, XLNetWrapperForProteinMPNNTraining
 
     scaler = torch.cuda.amp.GradScaler()
      
@@ -65,12 +67,17 @@ def main(args):
         args.max_protein_length = 1000
         args.batch_size = 1000
 
+    print("About to build training clusters")
     train, valid, test = build_training_clusters(params, args.debug)
+    print("Finished building training clusters")
      
     train_set = PDB_dataset(list(train.keys()), loader_pdb, train, params)
     train_loader = torch.utils.data.DataLoader(train_set, worker_init_fn=worker_init_fn, **LOAD_PARAM)
     valid_set = PDB_dataset(list(valid.keys()), loader_pdb, valid, params)
     valid_loader = torch.utils.data.DataLoader(valid_set, worker_init_fn=worker_init_fn, **LOAD_PARAM)
+    print("train_loader and valid_loader initialized")
+
+    model_name = args.model_name 
 
     if model_name == 'protein_mpnn':
         model = ProteinMPNN(node_features=args.hidden_dim, 
@@ -83,21 +90,22 @@ def main(args):
                         augment_eps=args.backbone_noise)
     elif model_name == 'xlnet':
         model = XLNetWrapperForProteinMPNNTraining()
+        print("HERE!")
         
     model.to(device)
-
+    print(f"model uploaded to {device}")
 
     if PATH:
         checkpoint = torch.load(PATH)
-        total_step = checkpoint['step'] #write total_step from the checkpoint
-        epoch = checkpoint['epoch'] #write epoch from the checkpoint
+        total_step = checkpoint['step'] # write total_step from the checkpoint
+        epoch = checkpoint['epoch'] # write epoch from the checkpoint
         model.load_state_dict(checkpoint['model_state_dict'])
     else:
         total_step = 0
         epoch = 0
 
     optimizer = get_std_opt(model.parameters(), args.hidden_dim, total_step)
-
+    print("optimizer initialized")
 
     if PATH:
         optimizer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -111,15 +119,41 @@ def main(args):
             p.put_nowait(executor.submit(get_pdbs, valid_loader, 1, args.max_protein_length, args.num_examples_per_epoch))
         pdb_dict_train = q.get().result()
         pdb_dict_valid = p.get().result()
-       
+        
+        # debugging:
+        
+        # pdb_dict_train = get_pdbs(train_loader, 1, args.max_protein_length, args.num_examples_per_epoch)
+        # breakpoint()
+        # pdb_dict_valid = get_pdbs(valid_loader, 1, args.max_protein_length, args.num_examples_per_epoch)
+        # print("pdb_dict lists initialized")
+        
+        # with open("pdb_dict_train.jsonl", "w") as jsonl_file:
+        #     # Write each dictionary as a separate JSON object on a new line
+        #     for pdb_dict in pdb_dict_train:
+        #         json.dump(pdb_dict, jsonl_file)
+        #         jsonl_file.write('\n')  # Add a newline to separate JSON objects
+                
+        # with open("pdb_dict_valid.jsonl", "w") as jsonl_file:
+        #     # Write each dictionary as a separate JSON object on a new line
+        #     for pdb_dict in pdb_dict_valid:
+        #         json.dump(pdb_dict, jsonl_file)
+        #         jsonl_file.write('\n')  # Add a newline to separate JSON objects
+                
+        # import os
+
+        # current_directory = os.getcwd()
+        # print("Current Working Directory:", current_directory)
+        
         dataset_train = StructureDataset(pdb_dict_train, truncate=None, max_length=args.max_protein_length) 
         dataset_valid = StructureDataset(pdb_dict_valid, truncate=None, max_length=args.max_protein_length)
         
         loader_train = StructureLoader(dataset_train, batch_size=args.batch_size)
         loader_valid = StructureLoader(dataset_valid, batch_size=args.batch_size)
+        print("structure dataset and loaders initialized")
         
         reload_c = 0 
         for e in range(args.num_epochs):
+            print("epoch: " + str(epoch))
             t0 = time.time()
             e = epoch + e
             model.train()
@@ -225,7 +259,6 @@ def main(args):
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.optimizer.state_dict(),
                         }, checkpoint_filename)
-
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
