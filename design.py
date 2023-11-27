@@ -70,6 +70,7 @@ def example_design(args):
             designed_seq = decode_algorithm_dict[args.decode_algorithm](prob_model=prob_model, struct=struct, seq=seq, unmasked_seq=orig_seq, decode_order=decode_order, fixed_position_mask=fixed_position_mask, from_scratch=from_scratch, temperature=args.temperature, n_beams=args.n_beams, exclude_aa=args.exclude_aa)
             designed_seqs.append(designed_seq)
 
+    os.makedirs(args.results_dir, exist_ok=True)
     with open(os.path.join(args.results_dir, f'{args.model_name}_{args.protein_id}_sequences.txt'), 'w') as f:
         for seq in designed_seqs:
             f.write(seq + '\n')

@@ -1,2 +1,5 @@
 __pycache__/
+results/
+designed_seqs.pkl
 .vscode/launch.json
+
